@@ -7,12 +7,12 @@ MegaPCM_DAC_Table:
 		; Sonic 1 & 2
 						; type	pointer	Hz
 ptr_dac81:	dcSample	TYPE_PCM, Kick, 8201					; $81	- Kick
-ptr_dac82:	dcSample	TYPE_PCM, Snare, 23784					; $82	- Snare
-ptr_dac85:	dcSample	TYPE_PCM, Timpani, 7328					; $85	- Timpani
-ptr_dac88:	dcSample	TYPE_PCM, Timpani, 9635					; $88	- Hi-Timpani
-ptr_dac89:	dcSample	TYPE_PCM, Timpani, 8720					; $89	- Mid-Timpani
-ptr_dac8A:	dcSample	TYPE_PCM, Timpani, 7138					; $8A	- Low-Timpani
-ptr_dac8B:	dcSample	TYPE_PCM, Timpani, 6957					; $8B	- Very Low-Timpani
+ptr_dac82:	dcSample	TYPE_PCM_TURBO, Snare, 0					; $82	- Snare
+ptr_dac85:	dcSample	TYPE_PCM, Timpani, roundFloatToInteger(7328.0*(16025.0/7328.0))					; $85	- Timpani
+ptr_dac88:	dcSample	TYPE_PCM, Timpani, roundFloatToInteger(9635.0*(16025.0/7328.0))					; $88	- Hi-Timpani
+ptr_dac89:	dcSample	TYPE_PCM, Timpani, roundFloatToInteger(8720.0*(16025.0/7328.0))					; $89	- Mid-Timpani
+ptr_dac8A:	dcSample	TYPE_PCM, Timpani, roundFloatToInteger(7138.0*(16025.0/7328.0))					; $8A	- Low-Timpani
+ptr_dac8B:	dcSample	TYPE_PCM, Timpani, roundFloatToInteger(6957.0*(16025.0/7328.0))					; $8B	- Very Low-Timpani
 	endif
 
 	if SMPS_S2DACSamples
@@ -127,5 +127,5 @@ ptr_dacDE:	dcSample	TYPE_PCM, LetsGo, 13610					; $DE	- "Let's Go!"
 ptr_dacDF:	dcSample	TYPE_PCM, Hey, 13610					; $DF	- "Hey!"	; Clownacy | X_X Extending the DAC range is going to take some creativity...
 	endif
 
-ptr_dacE0:	dcSample	TYPE_PCM, SegaPCM, 16000				; $E0	- Sega!
+ptr_dacE0:	dcSample	TYPE_PCM_TURBO, SegaPCM, 0				; $E0	- Sega!
 			dc.w -1												; end marker

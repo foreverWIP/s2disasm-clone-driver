@@ -420,6 +420,7 @@ GameClrRAM:
 		clr.b	(SegaCD_Mode).w
 	endif
 
+	jsr (InitDMAQueue).l
 	bsr.w	VDPSetupGame
 	bsr.w	JmpTo_SoundDriverLoad
 	bsr.w	JoypadInit
@@ -1539,99 +1540,8 @@ PlaneMapToVRAM_H80_SpecialStage:
 	rts
 ; End of function PlaneMapToVRAM_H80_SpecialStage
 
-
-; ---------------------------------------------------------------------------
-; Subroutine for queueing VDP commands (seems to only queue transfers to VRAM),
-; to be issued the next time ProcessDMAQueue is called.
-; Can be called a maximum of 18 times before the buffer needs to be cleared
-; by issuing the commands (this subroutine DOES check for overflow)
-; ---------------------------------------------------------------------------
-
-; ||||||||||||||| S U B R O U T I N E |||||||||||||||||||||||||||||||||||||||
-
-; sub_144E: DMA_68KtoVRAM: QueueCopyToVRAM: QueueVDPCommand: Add_To_DMA_Queue:
-QueueDMATransfer:
-	movea.l	(VDP_Command_Buffer_Slot).w,a1
-	cmpa.w	#VDP_Command_Buffer_Slot,a1
-	beq.s	QueueDMATransfer_Done ; return if there's no more room in the buffer
-
-	; piece together some VDP commands and store them for later...
-	move.w	#$9300,d0 ; command to specify DMA transfer length & $00FF
-	move.b	d3,d0
-	move.w	d0,(a1)+ ; store command
-
-	move.w	#$9400,d0 ; command to specify DMA transfer length & $FF00
-	lsr.w	#8,d3
-	move.b	d3,d0
-	move.w	d0,(a1)+ ; store command
-
-	move.w	#$9500,d0 ; command to specify source address & $0001FE
-	lsr.l	#1,d1
-	move.b	d1,d0
-	move.w	d0,(a1)+ ; store command
-
-	move.w	#$9600,d0 ; command to specify source address & $01FE00
-	lsr.l	#8,d1
-	move.b	d1,d0
-	move.w	d0,(a1)+ ; store command
-
-	move.w	#$9700,d0 ; command to specify source address & $FE0000
-	lsr.l	#8,d1
-	;andi.b	#$7F,d1		; this instruction safely allows source to be in RAM; S3K added this
-	move.b	d1,d0
-	move.w	d0,(a1)+ ; store command
-
-	andi.l	#$FFFF,d2 ; command to specify destination address and begin DMA
-	lsl.l	#2,d2
-	lsr.w	#2,d2
-	swap	d2
-	ori.l	#vdpComm($0000,VRAM,DMA),d2 ; set bits to specify VRAM transfer
-	move.l	d2,(a1)+ ; store command
-
-	move.l	a1,(VDP_Command_Buffer_Slot).w ; set the next free slot address
-	cmpa.w	#VDP_Command_Buffer_Slot,a1
-	beq.s	QueueDMATransfer_Done ; return if there's no more room in the buffer
-	move.w	#0,(a1) ; put a stop token at the end of the used part of the buffer
-; return_14AA:
-QueueDMATransfer_Done:
-	rts
-; End of function QueueDMATransfer
-
-
-; ---------------------------------------------------------------------------
-; Subroutine for issuing all VDP commands that were queued
-; (by earlier calls to QueueDMATransfer)
-; Resets the queue when it's done
-; ---------------------------------------------------------------------------
-
-; ||||||||||||||| S U B R O U T I N E |||||||||||||||||||||||||||||||||||||||
-
-; sub_14AC: CopyToVRAM: IssueVDPCommands: Process_DMA: Process_DMA_Queue:
-ProcessDMAQueue:
-	lea	(VDP_control_port).l,a5
-	lea	(VDP_Command_Buffer).w,a1
-; loc_14B6:
-ProcessDMAQueue_Loop:
-	move.w	(a1)+,d0
-	beq.s	ProcessDMAQueue_Done ; branch if we reached a stop token
-	; issue a set of VDP commands...
-	move.w	d0,(a5)		; transfer length
-	move.w	(a1)+,(a5)	; transfer length
-	move.w	(a1)+,(a5)	; source address
-	move.w	(a1)+,(a5)	; source address
-	move.w	(a1)+,(a5)	; source address
-	move.w	(a1)+,(a5)	; destination
-	move.w	(a1)+,(a5)	; destination
-	cmpa.w	#VDP_Command_Buffer_Slot,a1
-	bne.s	ProcessDMAQueue_Loop ; loop if we haven't reached the end of the buffer
-; loc_14CE:
-ProcessDMAQueue_Done:
-	move.w	#0,(VDP_Command_Buffer).w
-	move.l	#VDP_Command_Buffer,(VDP_Command_Buffer_Slot).w
-	rts
-; End of function ProcessDMAQueue
-
-
+intMacros_defined = 1
+	include "ultradma.asm"
 
 ; ---------------------------------------------------------------------------
 ; START OF NEMESIS DECOMPRESSOR
@@ -2348,117 +2258,7 @@ EniDec_ChkGetNextByte:
 .return:
 	rts
 
-; ||||||||||||||| S U B R O U T I N E |||||||||||||||||||||||||||||||||||||||
-; ---------------------------------------------------------------------------
-; KOSINSKI DECOMPRESSION PROCEDURE
-; (sometimes called KOZINSKI decompression)
-
-; This is the only procedure in the game that stores variables on the stack.
-
-; ARGUMENTS:
-; a0 = source address
-; a1 = destination address
-
-; For format explanation, see http://info.sonicretro.org/Kosinski_compression
-; ---------------------------------------------------------------------------
-; KozDec_193A:
-KosDec:
-	subq.l	#2,sp
-	move.b	(a0)+,1(sp)
-	move.b	(a0)+,(sp)
-	move.w	(sp),d5
-	moveq	#$F,d4
-
-Kos_Loop:
-	lsr.w	#1,d5
-	move	sr,d6
-	dbf	d4,.chkbit
-	move.b	(a0)+,1(sp)
-	move.b	(a0)+,(sp)
-	move.w	(sp),d5
-	moveq	#$F,d4
-
-.chkbit:
-	move	d6,ccr
-	bcc.s	Kos_RLE
-	move.b	(a0)+,(a1)+
-	bra.s	Kos_Loop
-; ---------------------------------------------------------------------------
-Kos_RLE:
-	moveq	#0,d3
-	lsr.w	#1,d5
-	move	sr,d6
-	dbf	d4,.chkbit
-	move.b	(a0)+,1(sp)
-	move.b	(a0)+,(sp)
-	move.w	(sp),d5
-	moveq	#$F,d4
-
-.chkbit:
-	move	d6,ccr
-	bcs.s	Kos_SeparateRLE
-	lsr.w	#1,d5
-	dbf	d4,.loop1
-	move.b	(a0)+,1(sp)
-	move.b	(a0)+,(sp)
-	move.w	(sp),d5
-	moveq	#$F,d4
-
-.loop1:
-	roxl.w	#1,d3
-	lsr.w	#1,d5
-	dbf	d4,.loop2
-	move.b	(a0)+,1(sp)
-	move.b	(a0)+,(sp)
-	move.w	(sp),d5
-	moveq	#$F,d4
-
-.loop2:
-	roxl.w	#1,d3
-	addq.w	#1,d3
-	moveq	#-1,d2
-	move.b	(a0)+,d2
-	bra.s	Kos_RLELoop
-; ---------------------------------------------------------------------------
-Kos_SeparateRLE:
-	move.b	(a0)+,d0
-	move.b	(a0)+,d1
-	moveq	#-1,d2
-	move.b	d1,d2
-	lsl.w	#5,d2
-	move.b	d0,d2
-	andi.w	#7,d1
-	beq.s	Kos_SeparateRLE2
-	move.b	d1,d3
-	addq.w	#1,d3
-
-Kos_RLELoop:
-	move.b	(a1,d2.w),d0
-	move.b	d0,(a1)+
-	dbf	d3,Kos_RLELoop
-	bra.s	Kos_Loop
-; ---------------------------------------------------------------------------
-Kos_SeparateRLE2:
-	move.b	(a0)+,d1
-	beq.s	Kos_Done
-	cmpi.b	#1,d1
-	beq.w	Kos_Loop
-	move.b	d1,d3
-	bra.s	Kos_RLELoop
-; ---------------------------------------------------------------------------
-Kos_Done:
-	addq.l	#2,sp
-	rts
-; End of function KosDec
-
-; ===========================================================================
-
-    if gameRevision<2
-	nop
-    endif
-
-
-
+	include "asm/kosdec.asm"
 
 ; ||||||||||||||| S U B R O U T I N E |||||||||||||||||||||||||||||||||||||||
 
@@ -3432,112 +3232,6 @@ Pal_FadeToWhite:
 	addq.w	#2,a0
 	rts
 ; End of function Pal_AddColor2
-
-
-; Unused - dead code/data for old SEGA screen:
-
-; ===========================================================================
-; PalCycle_Sega:
-	tst.b	(PalCycle_Timer+1).w
-	bne.s	loc_2680
-	lea	(Normal_palette_line2).w,a1
-	lea	(Pal_Sega1).l,a0
-	moveq	#5,d1
-	move.w	(PalCycle_Frame).w,d0
-
-loc_2636:
-	bpl.s	loc_2640
-	addq.w	#2,a0
-	subq.w	#1,d1
-	addq.w	#2,d0
-	bra.s	loc_2636
-; ===========================================================================
-
-loc_2640:
-	move.w	d0,d2
-	andi.w	#$1E,d2
-	bne.s	loc_264A
-	addq.w	#2,d0
-
-loc_264A:
-	cmpi.w	#$60,d0
-	bhs.s	loc_2654
-	move.w	(a0)+,(a1,d0.w)
-
-loc_2654:
-	addq.w	#2,d0
-	dbf	d1,loc_2640
-	move.w	(PalCycle_Frame).w,d0
-	addq.w	#2,d0
-	move.w	d0,d2
-	andi.w	#$1E,d2
-	bne.s	loc_266A
-	addq.w	#2,d0
-
-loc_266A:
-	cmpi.w	#$64,d0
-	blt.s	loc_2678
-	move.w	#$401,(PalCycle_Timer).w
-	moveq	#-$C,d0
-
-loc_2678:
-	move.w	d0,(PalCycle_Frame).w
-	moveq	#1,d0
-	rts
-; ===========================================================================
-
-loc_2680:
-	subq.b	#1,(PalCycle_Timer).w
-	bpl.s	loc_26D2
-	move.b	#4,(PalCycle_Timer).w
-	move.w	(PalCycle_Frame).w,d0
-	addi.w	#$C,d0
-	cmpi.w	#$30,d0
-	blo.s	loc_269E
-	moveq	#0,d0
-	rts
-; ===========================================================================
-
-loc_269E:
-	move.w	d0,(PalCycle_Frame).w
-	lea	(Pal_Sega2).l,a0
-	lea	(a0,d0.w),a0
-	lea	(Normal_palette+4).w,a1
-	move.l	(a0)+,(a1)+
-	move.l	(a0)+,(a1)+
-	move.w	(a0)+,(a1)
-	lea	(Normal_palette_line2).w,a1
-	moveq	#0,d0
-	moveq	#$2C,d1
-
-loc_26BE:
-	move.w	d0,d2
-	andi.w	#$1E,d2
-	bne.s	loc_26C8
-	addq.w	#2,d0
-
-loc_26C8:
-	move.w	(a0),(a1,d0.w)
-	addq.w	#2,d0
-	dbf	d1,loc_26BE
-
-loc_26D2:
-	moveq	#1,d0
-	rts
-
-; ===========================================================================
-;----------------------------------------------------------------------------
-; Unused palette for the Sega logo
-;----------------------------------------------------------------------------
-; Pal_26D6:
-Pal_Sega1:	BINCLUDE	"art/palettes/Unused Sega logo.bin"
-;----------------------------------------------------------------------------
-; Unused palette for the Sega logo (fading?)
-;----------------------------------------------------------------------------
-; Pal_26E2:
-Pal_Sega2:	BINCLUDE	"art/palettes/Unused Sega logo 2.bin"
-
-; end of dead code/data
 
 ; ||||||||||||||| S U B R O U T I N E |||||||||||||||||||||||||||||||||||||||
 
@@ -4631,8 +4325,7 @@ Level_InitWater:
 	move.w	#$8C87,(a6)			; H res 40 cells, double res interlace
 +
 	move.w	(Hint_counter_reserve).w,(a6)
-	clr.w	(VDP_Command_Buffer).w
-	move.l	#VDP_Command_Buffer,(VDP_Command_Buffer_Slot).w
+	ResetDMAQueue
 	tst.b	(Water_flag).w	; does level have water?
 	beq.s	Level_LoadPal	; if not, branch
 	move.w	#$8014,(a6)	; H-INT enabled
@@ -5441,59 +5134,6 @@ MoveSonicInDemo:
 	tst.w	(Demo_mode_flag).w	; is demo mode on?
 	bne.w	MoveDemo_On	; if yes, branch
 	rts
-; ---------------------------------------------------------------------------
-; demo recording routine
-; (unused/dead code, but obviously used during development)
-; ---------------------------------------------------------------------------
-; MoveDemo_Record: loc_4828:
-	; calculate output location of recorded player 1 demo?
-	lea	(DemoScriptPointers).l,a1
-	moveq	#0,d0
-	move.b	(Current_Zone).w,d0
-	lsl.w	#2,d0
-	movea.l	(a1,d0.w),a1
-	move.w	(Demo_button_index).w,d0
-	adda.w	d0,a1
-
-	move.b	(Ctrl_1_Held).w,d0	; load input of player 1
-	cmp.b	(a1),d0			; is same button held?
-	bne.s	+			; if not, branch
-	addq.b	#1,1(a1)		; increment press length counter
-	cmpi.b	#$FF,1(a1)		; is button held too long?
-	beq.s	+			; if yes, branch
-	bra.s	MoveDemo_Record_P2	; go to player 2
-; ===========================================================================
-+
-	move.b	d0,2(a1)		; store last button press
-	move.b	#0,3(a1)		; reset hold length counter
-	addq.w	#2,(Demo_button_index).w ; advance to next button press
-	andi.w	#$3FF,(Demo_button_index).w ; wrap at max button press changes 1024
-; loc_486A:
-MoveDemo_Record_P2:
-	cmpi.b	#emerald_hill_zone,(Current_Zone).w
-	bne.s	++	; rts
-	lea	($FEC000).l,a1		; output location of recorded player 2 demo? (unknown)
-	move.w	(Demo_button_index_2P).w,d0
-	adda.w	d0,a1
-	move.b	(Ctrl_2_Held).w,d0	; load input of player 2
-	cmp.b	(a1),d0			; is same button held?
-	bne.s	+			; if not, branch
-	addq.b	#1,1(a1)		; increment press length counter
-	cmpi.b	#$FF,1(a1)		; is button held too long?
-	beq.s	+			; if yes, branch
-	bra.s	++			; if not, return
-; ===========================================================================
-+
-	move.b	d0,2(a1)		; store last button press
-	move.b	#0,3(a1)		; reset hold length counter
-	addq.w	#2,(Demo_button_index_2P).w ; advance to next button press
-	andi.w	#$3FF,(Demo_button_index_2P).w ; wrap at max button press changes 1024
-+	rts
-	; end of inactive recording code
-; ===========================================================================
-	; continue with MoveSonicInDemo:
-
-; loc_48AA:
 MoveDemo_On:
 	move.b	(Ctrl_1_Press).w,d0
 	or.b	(Ctrl_2_Press).w,d0
@@ -5658,14 +5298,9 @@ LoadCollisionIndexes:
 	move.b	(Current_Zone).w,d0
 	lsl.w	#2,d0
 	move.l	#Primary_Collision,(Collision_addr).w
-	move.w	d0,-(sp)
-	movea.l	Off_ColP(pc,d0.w),a0
-	lea	(Primary_Collision).w,a1
-	bsr.w	KosDec
-	move.w	(sp)+,d0
-	movea.l	Off_ColS(pc,d0.w),a0
-	lea	(Secondary_Collision).w,a1
-	bra.w	KosDec
+	move.l	Off_ColP(pc,d0.w),(Primary_Collision).w
+	move.l	Off_ColS(pc,d0.w),(Secondary_Collision).w
+	rts
 ; End of function LoadCollisionIndexes
 
 ; ===========================================================================
@@ -6369,6 +6004,7 @@ SpecialStage:
 	move.w	(VDP_Reg1_val).w,d0
 	andi.b	#$BF,d0
 	move.w	d0,(VDP_control_port).l
+	ResetDMAQueue
 
 ; /------------------------------------------------------------------------\
 ; | We're gonna zero-fill a bunch of VRAM regions. This was done by macro, |
@@ -6388,16 +6024,9 @@ SpecialStage:
 ; | Now we clear out some regions in main RAM where we want to store some  |
 ; | of our data structures.                                                |
 ; \------------------------------------------------------------------------/
-    if fixBugs
 	clearRAM Sprite_Table,Sprite_Table_End
 	clearRAM SS_Horiz_Scroll_Buf_1,SS_Horiz_Scroll_Buf_1+HorizontalScrollBuffer.len
 	clearRAM SS_Shared_RAM,SS_Shared_RAM_End
-    else
-	; These '+4's shouldn't be here; 'clearRAM' accidentally clears an additional 4 bytes.
-	clearRAM Sprite_Table,Sprite_Table_End+4
-	clearRAM SS_Horiz_Scroll_Buf_1,SS_Horiz_Scroll_Buf_1+HorizontalScrollBuffer.len+4
-	clearRAM SS_Shared_RAM,SS_Shared_RAM_End+4
-    endif
 	clearRAM Object_Display_Lists,Object_Display_Lists_End
 	clearRAM Object_RAM,Object_RAM_End
 
@@ -6406,8 +6035,7 @@ SpecialStage:
 	; overwriting the special stage's graphics.
 	; In a bizarre twice of luck, the above bug actually nullifies this bug: the excessive
 	; SS_Shared_RAM clear sets VDP_Command_Buffer to 0, just like the below code.
-	clr.w	(VDP_Command_Buffer).w
-	move.l	#VDP_Command_Buffer,(VDP_Command_Buffer_Slot).w
+	ResetDMAQueue
     endif
 
 	move	#$2300,sr
@@ -6556,8 +6184,7 @@ SpecialStage:
 	move.w	#$8C81,(a6)		; H res 40 cells, no interlace, S/H disabled
 	bsr.w	ClearScreen
 	jsrto	Hud_Base, JmpTo_Hud_Base
-	clr.w	(VDP_Command_Buffer).w
-	move.l	#VDP_Command_Buffer,(VDP_Command_Buffer_Slot).w
+	ResetDMAQueue
 	move	#$2300,sr
 	moveq	#PalID_Result,d0
 	bsr.w	PalLoad_Now
@@ -10163,8 +9790,7 @@ ContinueScreen:
 	; around the next frame. The problem here is, the art is queued, you
 	; die, get a Game Over, advance to the Continue screen, and then
 	; finally the art is loaded.
-	clr.w	(VDP_Command_Buffer).w
-	move.l	#VDP_Command_Buffer,(VDP_Command_Buffer_Slot).w
+	ResetDMAQueue
     endif
 
 	bsr.w	ContinueScreen_LoadLetters
@@ -10576,8 +10202,7 @@ TwoPlayerResults:
 	moveq	#40-1,d1
 	moveq	#28-1,d2
 	jsrto	PlaneMapToVRAM_H40, PlaneMapToVRAM_H40
-	clr.w	(VDP_Command_Buffer).w
-	move.l	#VDP_Command_Buffer,(VDP_Command_Buffer_Slot).w
+	ResetDMAQueue
 	clr.b	(Level_started_flag).w
 	clr.w	(Anim_Counters).w
 	lea	(Anim_SonicMilesBG).l,a2
@@ -11564,8 +11189,7 @@ MenuScreen:
 	clearRAM Object_RAM,Object_RAM_End
 
 	; load background + graphics of font/LevSelPics
-	clr.w	(VDP_Command_Buffer).w
-	move.l	#VDP_Command_Buffer,(VDP_Command_Buffer_Slot).w
+	ResetDMAQueue
 	move.l	#vdpComm(tiles_to_bytes(ArtTile_ArtNem_FontStuff),VRAM,WRITE),(VDP_control_port).l
 	lea	(ArtNem_FontStuff).l,a0
 	bsr.w	NemDec
@@ -18361,48 +17985,6 @@ SetHorizScrollFlagsBG2:	; only used by CPZ
 	rts
 ; End of function SetHorizScrollFlagsBG2
 
-; ===========================================================================
-; some apparently unused code
-;SetHorizScrollFlagsBG3:
-	move.l	(Camera_BG3_X_pos).w,d2
-	move.l	d2,d0
-	add.l	d4,d0
-	move.l	d0,(Camera_BG3_X_pos).w
-	move.l	d0,d1
-	swap	d1
-	andi.w	#$10,d1
-	move.b	(Horiz_block_crossed_flag_BG3).w,d3
-	eor.b	d3,d1
-	bne.s	++	; rts
-	eori.b	#$10,(Horiz_block_crossed_flag_BG3).w
-	sub.l	d2,d0
-	bpl.s	+
-	bset	d6,(Scroll_flags_BG3).w
-	bra.s	++	; rts
-; ===========================================================================
-+
-	addq.b	#1,d6
-	bset	d6,(Scroll_flags_BG3).w
-+
-	rts
-; ===========================================================================
-; Unused - dead code leftover from S1:
-	lea	(VDP_control_port).l,a5
-	lea	(VDP_data_port).l,a6
-	lea	(Scroll_flags_BG).w,a2
-	lea	(Camera_BG_X_pos).w,a3
-	lea	(Level_Layout+$80).w,a4
-	move.w	#vdpComm(VRAM_Plane_B_Name_Table,VRAM,WRITE)>>16,d2
-	bsr.w	Draw_BG1
-	lea	(Scroll_flags_BG2).w,a2
-	lea	(Camera_BG2_X_pos).w,a3
-	bra.w	Draw_BG2
-
-; ===========================================================================
-
-
-
-
 ; ---------------------------------------------------------------------------
 ; Subroutine to display correct tiles as you move
 ; ---------------------------------------------------------------------------
@@ -18735,85 +18317,6 @@ SBZ_CameraSections:
 	; This matches the height of the background.
 
 	even
-
-; ===========================================================================
-	; Scrap Brain Zone 1 drawing code -- Sonic 1 left-over.
-
-;Draw_BG2_SBZ:
-	; Chemical Plant Zone uses a lighty-modified version this code.
-	; This is an advanced form of the usual background-drawing code that
-	; allows each row of blocks to update and scroll independently...
-	; kind of. There are only three possible 'cameras' that each row can
-	; align itself with. Still, each row is free to decide which camera
-	; it aligns with.
-	; This could have really benefitted Oil Ocean Zone's background,
-	; which has a section that goes unseen because the regular background
-	; drawer is too primitive to display it without making the sun and
-	; clouds disappear. Using this would have avoided that.
-
-	; Handle loading the rows as the camera moves up and down.
-	moveq	#-16,d4	; Y offset (relative to camera)
-	bclr	#scroll_flag_advanced_bg_up,(a2)
-	bne.s	.doUpOrDown
-	bclr	#scroll_flag_advanced_bg_down,(a2)
-	beq.s	.checkIfShouldDoLeftOrRight
-	move.w	#224,d4	; Y offset (relative to camera)
-
-.doUpOrDown:
-	lea_	SBZ_CameraSections+1,a0
-	move.w	(Camera_BG_Y_pos).w,d0
-	add.w	d4,d0
-	andi.w	#$1F0,d0	; After right-shifting, the is a mask of $1F. Since SBZ_CameraSections is $20 items long, this is correct.
-	lsr.w	#4,d0
-	move.b	(a0,d0.w),d0
-	lea	(BGCameraLookup).l,a3
-	movea.w	(a3,d0.w),a3	; Camera, either BG, BG2 or BG3 depending on Y
-	beq.s	.doWholeRow
-	moveq	#-16,d5	; X offset (relative to camera)
-	movem.l	d4-d5,-(sp)
-	bsr.w	CalculateVRAMAddressOfBlockForPlayer1
-	movem.l	(sp)+,d4-d5
-	bsr.w	DrawBlockRow
-	bra.s	.checkIfShouldDoLeftOrRight
-; ===========================================================================
-
-.doWholeRow:
-	moveq	#0,d5	; X (absolute)
-	movem.l	d4-d5,-(sp)
-	bsr.w	CalculateVRAMAddressOfBlockForPlayer1.AbsoluteX
-	movem.l	(sp)+,d4-d5
-	moveq	#512/16-1,d6	; The entire width of the plane in blocks minus 1.
-	bsr.w	DrawBlockRow.AbsoluteXCustomWidth
-
-.checkIfShouldDoLeftOrRight:
-	; If there are other scroll flags set, then go do them.
-	tst.b	(a2)
-	bne.s	.doLeftOrRight
-	rts
-; ===========================================================================
-
-.doLeftOrRight:
-	moveq	#-16,d4 ; Y offset
-
-	; Load left column.
-	moveq	#-16,d5 ; X offset
-	move.b	(a2),d0
-	andi.b	#(1<<scroll_flag_advanced_bg1_right)|(1<<scroll_flag_advanced_bg2_right)|(1<<scroll_flag_advanced_bg3_right),d0
-	beq.s	+
-	lsr.b	#1,d0	; Make the left and right flags share the same bits, to simplify a calculation later.
-	move.b	d0,(a2)
-	; Load right column.
-	move.w	#320,d5 ; X offset
-+
-	; Select the correct starting background section, and then begin
-	; drawing the column.
-	lea_	SBZ_CameraSections,a0
-	move.w	(Camera_BG_Y_pos).w,d0
-	andi.w	#$1F0,d0	; After right-shifting, the is a mask of $1F. Since SBZ_CameraSections is $20 items long, this is correct.
-	lsr.w	#4,d0
-	lea	(a0,d0.w),a0
-	bra.w	DrawBlockColumn_Advanced
-; end unused routine
 
 ; ||||||||||||||| S U B R O U T I N E |||||||||||||||||||||||||||||||||||||||
 
@@ -20784,24 +20287,6 @@ ScrollBG:
 	rts
 ; End of function ScrollBG
 
-; ===========================================================================
-	; unused/dead code
-	; This code is probably meant for testing the background scrolling code
-	; used by HTZ and WFZ. It would allows the BG position to be shifted up
-	; and down by the second controller.
-	btst	#button_up,(Ctrl_2_Held).w
-	beq.s	+
-	tst.w	(Camera_BG_Y_offset).w
-	beq.s	+
-	subq.w	#1,(Camera_BG_Y_offset).w
-+
-	btst	#button_down,(Ctrl_2_Held).w
-	beq.s	+
-	cmpi.w	#$700,(Camera_BG_Y_offset).w
-	beq.s	+
-	addq.w	#1,(Camera_BG_Y_offset).w
-+
-	rts
 ; ===========================================================================
 
 ; sub_EBEA:
@@ -41603,17 +41088,6 @@ Obj0A_WobbleData:
 	dc.b -3,-3,-4,-4,-4,-4,-4,-4,-4,-4,-4,-4,-4,-4,-4,-4;96
 	dc.b -4,-4,-4,-4,-4,-4,-4,-4,-4,-4,-4,-4,-4,-4,-4,-3;112
 	dc.b -3,-3,-3,-3,-3,-3,-2,-2,-2,-2,-2,-1,-1,-1,-1,-1;128
-
-	; Unused leftover from Sonic 1.
-	; This was used by Labyrinth Zone's water ripple effect in REV01.
-	dc.b  0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2;144
-	dc.b  2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3;160
-	dc.b  3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2;176
-	dc.b  2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0;192
-	dc.b  0,-1,-1,-1,-1,-1,-2,-2,-2,-2,-2,-3,-3,-3,-3,-3;208
-	dc.b -3,-3,-4,-4,-4,-4,-4,-4,-4,-4,-4,-4,-4,-4,-4,-4;224
-	dc.b -4,-4,-4,-4,-4,-4,-4,-4,-4,-4,-4,-4,-4,-4,-4,-3;240
-	dc.b -3,-3,-3,-3,-3,-3,-2,-2,-2,-2,-2,-1,-1,-1,-1,-1;256
 ; ===========================================================================
 ; the countdown numbers go over the dust and splash effect tiles in VRAM
 ; loc_1D5C0:
@@ -42941,6 +42415,7 @@ loc_1E7E2:
 
 loc_1E7F0:	; block has some solidity
 	movea.l	(Collision_addr).w,a2	; pointer to collision data, i.e. blockID -> collisionID array
+	movea.l	(a2),a2
 	move.b	(a2,d0.w),d0	; get collisionID
 	andi.w	#$FF,d0
 	beq.s	loc_1E7E2
@@ -43029,6 +42504,7 @@ loc_1E88A:
 
 loc_1E898:
 	movea.l	(Collision_addr).w,a2
+	movea.l	(a2),a2
 	move.b	(a2,d0.w),d0
 	andi.w	#$FF,d0
 	beq.s	loc_1E88A
@@ -43105,6 +42581,7 @@ loc_1E922:
 
 loc_1E928:
 	movea.l	(Collision_addr).w,a2
+	movea.l	(a2),a2
 	move.b	(a2,d0.w),d0
 	andi.w	#$FF,d0
 	beq.s	loc_1E922
@@ -43193,6 +42670,7 @@ loc_1E9C2:
 
 loc_1E9D0:
 	movea.l	(Collision_addr).w,a2
+	movea.l	(a2),a2
 	move.b	(a2,d0.w),d0
 	andi.w	#$FF,d0	; relevant collisionArrayEntry
 	beq.s	loc_1E9C2
@@ -43281,6 +42759,7 @@ loc_1EA6A:
 
 loc_1EA78:
 	movea.l	(Collision_addr).w,a2
+	movea.l	(a2),a2
 	move.b	(a2,d0.w),d0
 	andi.w	#$FF,d0
 	beq.s	loc_1EA6A
@@ -43597,12 +43076,6 @@ loc_1ECD4:
 +
 	rts
 ; ===========================================================================
-
-	; a bit of unused/dead code here
-;CheckFloorDist:
-	move.w	y_pos(a0),d2 ; a0=character
-	move.w	x_pos(a0),d3
-
 ; Checks a 16x16 block to find solid ground. May check an additional
 ; 16x16 block up for ceilings.
 ; d2 = y_pos
@@ -43629,31 +43102,6 @@ loc_1ECFE:
 	move.b	d2,d3
 +
 	rts
-; ===========================================================================
-
-	; Unused collision checking subroutine
-
-	move.w	x_pos(a0),d3 ; a0=character
-	move.w	y_pos(a0),d2
-	subq.w	#4,d2
-	move.l	#Primary_Collision,(Collision_addr).w
-	cmpi.b	#$D,lrb_solid_bit(a0)
-	beq.s	+
-	move.l	#Secondary_Collision,(Collision_addr).w
-+
-	lea	(Primary_Angle).w,a4
-	move.b	#0,(a4)
-	movea.w	#$10,a3
-	move.w	#0,d6
-	move.b	lrb_solid_bit(a0),d5
-	bsr.w	FindFloor
-	move.b	(Primary_Angle).w,d3
-	btst	#0,d3
-	beq.s	+
-	move.b	#0,d3
-+
-	rts
-
 ; ===========================================================================
 ; loc_1ED56:
 ChkFloorEdge:
@@ -43915,11 +43363,6 @@ Sonic_CheckCeiling:
 ; End of function Sonic_CheckCeiling
 
 ; ===========================================================================
-	; a bit of unused/dead code here
-;CheckCeilingDist:
-	move.w	y_pos(a0),d2 ; a0=character
-	move.w	x_pos(a0),d3
-
 ; ||||||||||||||| S U B R O U T I N E |||||||||||||||||||||||||||||||||||||||
 
 ; Checks a 16x16 block to find solid ceiling. May check an additional
@@ -87152,59 +86595,6 @@ Animated_ARZ:	zoneanimstart
 Animated_Null:
 	; invalid
 ; ===========================================================================
-
-; ---------------------------------------------------------------------------
-; Unused mystery function
-; In CPZ, within a certain range of camera X coordinates spanning
-; exactly 2 screens (a boss fight or cutscene?),
-; once every 8 frames, make the entire screen refresh and do... SOMETHING...
-; (in 2 separate 512-byte blocks of memory, move around a bunch of bytes)
-; Maybe some abandoned scrolling effect?
-; ---------------------------------------------------------------------------
-
-; ||||||||||||||| S U B R O U T I N E |||||||||||||||||||||||||||||||||||||||
-
-; sub_40200:
-	cmpi.b	#chemical_plant_zone,(Current_Zone).w
-	beq.s	+
--	rts
-; ===========================================================================
-; this shifts all blocks of the chunks $EA-$ED and $FA-$FD one block to the
-; left and the last block in each row (chunk $ED/$FD) to the beginning
-; i.e. rotates the blocks to the left by one
-+
-	move.w	(Camera_X_pos).w,d0
-	cmpi.w	#$1940,d0
-	blo.s	-	; rts
-	cmpi.w	#$1F80,d0
-	bhs.s	-	; rts
-	subq.b	#1,(CPZ_UnkScroll_Timer).w
-	bpl.s	-	; rts	; do it every 8th frame
-	move.b	#7,(CPZ_UnkScroll_Timer).w
-	move.b	#1,(Screen_redraw_flag).w
-	lea	(Chunk_Table+$EA*$80).l,a1 ; chunks $EA-$ED, $FFFF7500 - $FFFF7700
-	bsr.s	+
-	lea	(Chunk_Table+$FA*$80).l,a1 ; chunks $FA-$FD, $FFFF7D00 - $FFFF7F00
-+
-	move.w	#8-1,d1
-
--	move.w	(a1),d0
-    rept 3			; do this for 3 chunks
-      rept 7
-	move.w	2(a1),(a1)+	; shift 1st line of chunk by 1 block to the left (+3*14 bytes)
-      endm
-	move.w	$72(a1),(a1)+	; first block of next chunk to the left into previous chunk (+3*2 bytes)
-	adda.w	#$70,a1		; go to next chunk (+336 bytes)
-    endm
-      rept 7			; now do it for the 4th chunk
-	move.w	2(a1),(a1)+	; shift 1st line of chunk by 1 block to the left (+14 bytes)
-      endm
-	move.w	d0,(a1)+ 	; move 1st block of 1st chunk to last block of last chunk (+2 bytes, subsubtotal = 400 bytes)
-	suba.w	#$180,a1 	; go to the next row in the first chunk (-384 bytes, subtotal = -16 bytes)
-	dbf	d1,- 		; now do this again for rows 2-8 in these chunks
-				; 400 + 7 * (-16) = 512 byte range was affected
-	rts
-; ===========================================================================
 ; loc_402D4:
 LoadAnimatedBlocks:
 	cmpi.b	#hill_top_zone,(Current_Zone).w
@@ -90718,38 +90108,37 @@ ColArrayVertical:	BINCLUDE	"collision/Collision array - Vertical.bin"
 ColArrayHorizontal:	BINCLUDE	"collision/Collision array - Horizontal.bin"
 	even
 
-; These are all compressed in the Kosinski format.
-ColP_EHZHTZ:	BINCLUDE	"collision/EHZ and HTZ primary 16x16 collision index.kos"
+ColP_EHZHTZ:	BINCLUDE	"collision/EHZ and HTZ primary 16x16 collision index.unc"
 	even
-ColS_EHZHTZ:	BINCLUDE	"collision/EHZ and HTZ secondary 16x16 collision index.kos"
+ColS_EHZHTZ:	BINCLUDE	"collision/EHZ and HTZ secondary 16x16 collision index.unc"
 	even
-ColP_WZ:	;BINCLUDE	"collision/WZ primary 16x16 collision index.kos"
+ColP_WZ:	;BINCLUDE	"collision/WZ primary 16x16 collision index.unc"
 	;even
-ColP_MTZ:	BINCLUDE	"collision/MTZ primary 16x16 collision index.kos"
+ColP_MTZ:	BINCLUDE	"collision/MTZ primary 16x16 collision index.unc"
 	even
-ColP_HPZ:	;BINCLUDE	"collision/HPZ primary 16x16 collision index.kos"
+ColP_HPZ:	;BINCLUDE	"collision/HPZ primary 16x16 collision index.unc"
 	;even
-ColS_HPZ:	;BINCLUDE	"collision/HPZ secondary 16x16 collision index.kos"
+ColS_HPZ:	;BINCLUDE	"collision/HPZ secondary 16x16 collision index.unc"
 	;even
-ColP_OOZ:	BINCLUDE	"collision/OOZ primary 16x16 collision index.kos"
+ColP_OOZ:	BINCLUDE	"collision/OOZ primary 16x16 collision index.unc"
 	even
-ColP_MCZ:	BINCLUDE	"collision/MCZ primary 16x16 collision index.kos"
+ColP_MCZ:	BINCLUDE	"collision/MCZ primary 16x16 collision index.unc"
 	even
-ColP_CNZ:	BINCLUDE	"collision/CNZ primary 16x16 collision index.kos"
+ColP_CNZ:	BINCLUDE	"collision/CNZ primary 16x16 collision index.unc"
 	even
-ColS_CNZ:	BINCLUDE	"collision/CNZ secondary 16x16 collision index.kos"
+ColS_CNZ:	BINCLUDE	"collision/CNZ secondary 16x16 collision index.unc"
 	even
-ColP_CPZDEZ:	BINCLUDE	"collision/CPZ and DEZ primary 16x16 collision index.kos"
+ColP_CPZDEZ:	BINCLUDE	"collision/CPZ and DEZ primary 16x16 collision index.unc"
 	even
-ColS_CPZDEZ:	BINCLUDE	"collision/CPZ and DEZ secondary 16x16 collision index.kos"
+ColS_CPZDEZ:	BINCLUDE	"collision/CPZ and DEZ secondary 16x16 collision index.unc"
 	even
-ColP_ARZ:	BINCLUDE	"collision/ARZ primary 16x16 collision index.kos"
+ColP_ARZ:	BINCLUDE	"collision/ARZ primary 16x16 collision index.unc"
 	even
-ColS_ARZ:	BINCLUDE	"collision/ARZ secondary 16x16 collision index.kos"
+ColS_ARZ:	BINCLUDE	"collision/ARZ secondary 16x16 collision index.unc"
 	even
-ColP_WFZSCZ:	BINCLUDE	"collision/WFZ and SCZ primary 16x16 collision index.kos"
+ColP_WFZSCZ:	BINCLUDE	"collision/WFZ and SCZ primary 16x16 collision index.unc"
 	even
-ColS_WFZSCZ:	BINCLUDE	"collision/WFZ and SCZ secondary 16x16 collision index.kos"
+ColS_WFZSCZ:	BINCLUDE	"collision/WFZ and SCZ secondary 16x16 collision index.unc"
 	even
 ColP_Invalid:
 
@@ -91348,25 +90737,6 @@ MapEng_EndingTailsPlane:	BINCLUDE	"mappings/misc/Closeup of Tails flying plane i
 	even
 MapEng_EndingSonicPlane:	BINCLUDE	"mappings/misc/Closeup of Sonic flying plane in ending sequence.eni"
 	even
-; Strange unused mappings (duplicates of MapEng_EndGameLogo)
-				BINCLUDE	"mappings/misc/Sonic 2 end of game logo.eni"
-	even
-				BINCLUDE	"mappings/misc/Sonic 2 end of game logo.eni"
-	even
-				BINCLUDE	"mappings/misc/Sonic 2 end of game logo.eni"
-	even
-				BINCLUDE	"mappings/misc/Sonic 2 end of game logo.eni"
-	even
-				BINCLUDE	"mappings/misc/Sonic 2 end of game logo.eni"
-	even
-				BINCLUDE	"mappings/misc/Sonic 2 end of game logo.eni"
-	even
-				BINCLUDE	"mappings/misc/Sonic 2 end of game logo.eni"
-	even
-				BINCLUDE	"mappings/misc/Sonic 2 end of game logo.eni"
-	even
-				BINCLUDE	"mappings/misc/Sonic 2 end of game logo.eni"
-	even
 
 ArtNem_EndingPics:		BINCLUDE	"art/nemesis/Movie sequence at end of game.nem"
 	even
@@ -91612,14 +90982,6 @@ MiscKoz_SpecialObjectLocations:	BINCLUDE	"misc/Special stage object location lis
 	even
 
 ;--------------------------------------------------------------------------------------
-; Filler (free space) (unnecessary; could be replaced with "even")
-;--------------------------------------------------------------------------------------
-	align $100
-
-
-
-
-;--------------------------------------------------------------------------------------
 ; Offset index of ring locations
 ;  The first commented number on each line is an array index; the second is the
 ;  associated zone.
@@ -91712,11 +91074,6 @@ Rings_ARZ_1:	BINCLUDE	"level/rings/ARZ_1.bin"
 Rings_ARZ_2:	BINCLUDE	"level/rings/ARZ_2.bin"
 Rings_SCZ_1:	BINCLUDE	"level/rings/SCZ_1.bin"
 Rings_SCZ_2:	BINCLUDE	"level/rings/SCZ_2.bin"
-
-; --------------------------------------------------------------------------------------
-; Filler (free space) (unnecessary; could be replaced with "even")
-; --------------------------------------------------------------------------------------
-	align $200
 
 ; --------------------------------------------------------------------------------------
 ; Offset index of object locations
@@ -91854,17 +91211,6 @@ Objects_SCZ_2:	BINCLUDE	"level/objects/SCZ_2.bin"
 	ObjectLayoutBoundary
 Objects_Null:
 	ObjectLayoutBoundary
-	; Another strange space for a layout
-	ObjectLayoutBoundary
-	; And another
-	ObjectLayoutBoundary
-	; And another
-	ObjectLayoutBoundary
-
-; --------------------------------------------------------------------------------------
-; Filler (free space) (unnecessary; could be replaced with "even")
-; --------------------------------------------------------------------------------------
-	align $1000
 
 ; ---------------------------------------------------------------------------
 ; Vladikcomper's Mega PCM 2.0 - DAC Sound Driver
@@ -91901,8 +91247,6 @@ ArtNem_HtzZipline:		BINCLUDE	"art/nemesis/HTZ zip-line platform.nem"
 ArtNem_HtzValveBarrier:		BINCLUDE	"art/nemesis/One way barrier from HTZ.nem"
 	even
 ArtNem_HtzSeeSaw:		BINCLUDE	"art/nemesis/See-saw in HTZ.nem"
-	even
-				BINCLUDE	"art/nemesis/Fireball 3.nem" ; Unused
 	even
 ArtNem_HtzRock:			BINCLUDE	"art/nemesis/Rock from HTZ.nem"
 	even
