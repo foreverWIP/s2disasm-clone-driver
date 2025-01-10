@@ -346,6 +346,18 @@ FMDoNext:
 	bra.w	FinishTrackUpdate
 ; End of function FMDoNext
 
+zMakeFMFrequency function frequency,roundFloatToInteger(frequency*1024*1024*2/FM_Sample_Rate)
+zMakeFMFrequencyPAL function frequency,roundFloatToInteger(frequency*1024*1024*2/FM_Sample_Rate*PAL_Clock_Diff)
+zMakeFMFrequenciesOctave macro octave
+		irp op,15.392209,16.357397,17.347985,18.363972,19.456159,20.649944,21.843729,23.139113,24.510696,25.983878,27.533258,29.158838
+			dc.w (zMakeFMFrequency(op)&$7FF)|(octave*$800)
+		endm
+	endm
+zMakeFMFrequenciesOctavePAL macro octave
+		irp op,15.392209,16.357397,17.347985,18.363972,19.456159,20.649944,21.843729,23.139113,24.510696,25.983878,27.533258,29.158838
+			dc.w (zMakeFMFrequencyPAL(op)&$7FF)|(octave*$800)
+		endm
+	endm
 
 ; ||||||||||||||| S U B	R O U T	I N E |||||||||||||||||||||||||||||||||||||||
 
@@ -363,7 +375,13 @@ FMSetFreq:
     endif
 	andi.w	#$7F,d5				; Clear high byte and sign bit
 	add.w	d5,d5
-	move.w	FMFrequencies(pc,d5.w),SMPS_Track.Freq(a5)
+	lea		(FMFrequencies).l,a0
+	btst	#f_pal,SMPS_RAM.bitfield1(a6)				; is this a PAL console?
+	beq.s	+											; if not, branch
+	lea		(FMFrequenciesPAL).l,a0
++
+	adda.w	d5,a0
+	move.w	(a0),SMPS_Track.Freq(a5)
 	rts
 ; End of function FMSetFreq
 
@@ -373,14 +391,24 @@ FMSetFreq:
 ; ---------------------------------------------------------------------------
 ; word_72790: FM_Notes:
 FMFrequencies:
-	dc.w $025E,$0284,$02AB,$02D3,$02FE,$032D,$035C,$038F,$03C5,$03FF,$043C,$047C
-	dc.w $0A5E,$0A84,$0AAB,$0AD3,$0AFE,$0B2D,$0B5C,$0B8F,$0BC5,$0BFF,$0C3C,$0C7C
-	dc.w $125E,$1284,$12AB,$12D3,$12FE,$132D,$135C,$138F,$13C5,$13FF,$143C,$147C
-	dc.w $1A5E,$1A84,$1AAB,$1AD3,$1AFE,$1B2D,$1B5C,$1B8F,$1BC5,$1BFF,$1C3C,$1C7C
-	dc.w $225E,$2284,$22AB,$22D3,$22FE,$232D,$235C,$238F,$23C5,$23FF,$243C,$247C
-	dc.w $2A5E,$2A84,$2AAB,$2AD3,$2AFE,$2B2D,$2B5C,$2B8F,$2BC5,$2BFF,$2C3C,$2C7C
-	dc.w $325E,$3284,$32AB,$32D3,$32FE,$332D,$335C,$338F,$33C5,$33FF,$343C,$347C
-	dc.w $3A5E,$3A84,$3AAB,$3AD3,$3AFE,$3B2D,$3B5C,$3B8F,$3BC5,$3BFF,$3C3C,$3C7C
+	zMakeFMFrequenciesOctave 0
+	zMakeFMFrequenciesOctave 1
+	zMakeFMFrequenciesOctave 2
+	zMakeFMFrequenciesOctave 3
+	zMakeFMFrequenciesOctave 4
+	zMakeFMFrequenciesOctave 5
+	zMakeFMFrequenciesOctave 6
+	zMakeFMFrequenciesOctave 7
+
+FMFrequenciesPAL:
+	zMakeFMFrequenciesOctavePAL 0
+	zMakeFMFrequenciesOctavePAL 1
+	zMakeFMFrequenciesOctavePAL 2
+	zMakeFMFrequenciesOctavePAL 3
+	zMakeFMFrequenciesOctavePAL 4
+	zMakeFMFrequenciesOctavePAL 5
+	zMakeFMFrequenciesOctavePAL 6
+	zMakeFMFrequenciesOctavePAL 7
 
 ; ||||||||||||||| S U B	R O U T	I N E |||||||||||||||||||||||||||||||||||||||
 
@@ -2460,7 +2488,13 @@ PSGSetFreq:
     endif
 	andi.w	#$7F,d5				; Clear high byte and sign bit
 	add.w	d5,d5
-	move.w	PSGFrequencies(pc,d5.w),SMPS_Track.Freq(a5)	; Set new frequency
+	lea		(PSGFrequencies).l,a0
+	btst	#f_pal,SMPS_RAM.bitfield1(a6)				; is this a PAL console?
+	beq.s	+											; if not, branch
+	lea		(PSGFrequenciesPAL).l,a0
++
+	adda.w	d5,a0
+	move.w	(a0),SMPS_Track.Freq(a5)
 	; Clownacy | Sonic 2's driver doesn't continue to FinishTrackUpdate
 	rts
 ; ===========================================================================
@@ -2472,17 +2506,40 @@ PSGSetFreq:
 	bra.w	PSGNoteOff
 ; End of function PSGSetFreq
 
+zMakePSGFrequency function frequency,min($3FF,roundFloatToInteger(PSG_Sample_Rate/(frequency*2)))
+zMakePSGFrequencyPAL function frequency,min($3FF,roundFloatToInteger(PSG_Sample_Rate/(frequency*2)*(1.0/PAL_Clock_Diff)))
+zMakePSGFrequencies macro pal
+		irp op,ALLARGS
+			dc.w zMakePSGFrequency(op)
+		endm
+	endm
+zMakePSGFrequenciesPAL macro pal
+		irp op,ALLARGS
+			dc.w zMakePSGFrequencyPAL(op)
+		endm
+	endm
+
 ; ===========================================================================
 ; word_729CE:
 PSGFrequencies:
 	; This is the expanded PSG frequency table from Sonic 3 & Knuckles' driver
-	dc.w $3FF, $3FF, $3FF, $3FF, $3FF, $3FF, $3FF, $3FF, $3FF, $3F7, $3BE, $388
-	dc.w $356, $326, $2F9, $2CE, $2A5, $280, $25C, $23A, $21A, $1FB, $1DF, $1C4
-	dc.w $1AB, $193, $17D, $167, $153, $140, $12E, $11D, $10D,  $FE,  $EF,  $E2
-	dc.w  $D6,  $C9,  $BE,  $B4,  $A9,  $A0,  $97,  $8F,  $87,  $7F,  $78,  $71
-	dc.w  $6B,  $65,  $5F,  $5A,  $55,  $50,  $4B,  $47,  $43,  $40,  $3C,  $39
-	dc.w  $36,  $33,  $30,  $2D,  $2B,  $28,  $26,  $24,  $22,  $20,  $1F,  $1D
-	dc.w  $1B,  $1A,  $18,  $17,  $16,  $15,  $13,  $12,  $11,  $10,    0,    0
+	zMakePSGFrequencies  109.34,    109.34,    109.34,    109.34,    109.34,    109.34,    109.34,    109.34,    109.34,    110.20,    116.76,    123.73
+	zMakePSGFrequencies  130.98,    138.78,    146.99,    155.79,    165.22,    174.78,    185.19,    196.24,    207.91,    220.63,    233.52,    247.47
+	zMakePSGFrequencies  261.96,    277.56,    293.59,    311.58,    329.97,    349.56,    370.39,    392.49,    415.83,    440.39,    468.03,    494.95
+	zMakePSGFrequencies  522.71,    556.51,    588.73,    621.44,    661.89,    699.12,    740.79,    782.24,    828.59,    880.79,    932.17,    989.91
+	zMakePSGFrequencies 1045.42,   1107.52,   1177.47,   1242.89,   1316.00,   1398.25,   1491.47,   1575.50,   1669.55,   1747.82,   1864.34,   1962.46
+	zMakePSGFrequencies 2071.49,   2193.34,   2330.42,   2485.78,   2601.40,   2796.51,   2943.69,   3107.23,   3290.01,   3495.64,   3608.40,   3857.25
+	zMakePSGFrequencies 4142.98,   4302.32,   4660.85,   4863.50,   5084.56,   5326.69,   5887.39,   6214.47,   6580.02,   6991.28, 223721.56, 223721.56
+
+PSGFrequenciesPAL:
+	; This is the expanded PSG frequency table from Sonic 3 & Knuckles' driver
+	zMakePSGFrequenciesPAL  109.34,    109.34,    109.34,    109.34,    109.34,    109.34,    109.34,    109.34,    109.34,    110.20,    116.76,    123.73
+	zMakePSGFrequenciesPAL  130.98,    138.78,    146.99,    155.79,    165.22,    174.78,    185.19,    196.24,    207.91,    220.63,    233.52,    247.47
+	zMakePSGFrequenciesPAL  261.96,    277.56,    293.59,    311.58,    329.97,    349.56,    370.39,    392.49,    415.83,    440.39,    468.03,    494.95
+	zMakePSGFrequenciesPAL  522.71,    556.51,    588.73,    621.44,    661.89,    699.12,    740.79,    782.24,    828.59,    880.79,    932.17,    989.91
+	zMakePSGFrequenciesPAL 1045.42,   1107.52,   1177.47,   1242.89,   1316.00,   1398.25,   1491.47,   1575.50,   1669.55,   1747.82,   1864.34,   1962.46
+	zMakePSGFrequenciesPAL 2071.49,   2193.34,   2330.42,   2485.78,   2601.40,   2796.51,   2943.69,   3107.23,   3290.01,   3495.64,   3608.40,   3857.25
+	zMakePSGFrequenciesPAL 4142.98,   4302.32,   4660.85,   4863.50,   5084.56,   5326.69,   5887.39,   6214.47,   6580.02,   6991.28, 223721.56, 223721.56
 
 ; ||||||||||||||| S U B	R O U T	I N E |||||||||||||||||||||||||||||||||||||||
 

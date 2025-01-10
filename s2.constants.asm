@@ -1883,6 +1883,10 @@ CutScene:
 ; ---------------------------------------------------------------------------
 ; Clocks
 Master_Clock    = 53693175
+Master_Clock_Float    = 53693175.0
+Master_Clock_PAL = 53203424
+Master_Clock_PAL_Float = 53203424.0
+PAL_Clock_Diff  = Master_Clock_Float/Master_Clock_PAL_Float
 M68000_Clock    = Master_Clock/7
 Z80_Clock       = Master_Clock/15
 FM_Sample_Rate  = M68000_Clock/(6*6*4)
