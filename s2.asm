@@ -5658,14 +5658,9 @@ LoadCollisionIndexes:
 	move.b	(Current_Zone).w,d0
 	lsl.w	#2,d0
 	move.l	#Primary_Collision,(Collision_addr).w
-	move.w	d0,-(sp)
-	movea.l	Off_ColP(pc,d0.w),a0
-	lea	(Primary_Collision).w,a1
-	bsr.w	KosDec
-	move.w	(sp)+,d0
-	movea.l	Off_ColS(pc,d0.w),a0
-	lea	(Secondary_Collision).w,a1
-	bra.w	KosDec
+	move.l	Off_ColP(pc,d0.w),(Primary_Collision).w
+	move.l	Off_ColS(pc,d0.w),(Secondary_Collision).w
+	rts
 ; End of function LoadCollisionIndexes
 
 ; ===========================================================================
@@ -42941,6 +42936,7 @@ loc_1E7E2:
 
 loc_1E7F0:	; block has some solidity
 	movea.l	(Collision_addr).w,a2	; pointer to collision data, i.e. blockID -> collisionID array
+	movea.l	(a2),a2
 	move.b	(a2,d0.w),d0	; get collisionID
 	andi.w	#$FF,d0
 	beq.s	loc_1E7E2
@@ -43029,6 +43025,7 @@ loc_1E88A:
 
 loc_1E898:
 	movea.l	(Collision_addr).w,a2
+	movea.l	(a2),a2
 	move.b	(a2,d0.w),d0
 	andi.w	#$FF,d0
 	beq.s	loc_1E88A
@@ -43105,6 +43102,7 @@ loc_1E922:
 
 loc_1E928:
 	movea.l	(Collision_addr).w,a2
+	movea.l	(a2),a2
 	move.b	(a2,d0.w),d0
 	andi.w	#$FF,d0
 	beq.s	loc_1E922
@@ -43193,6 +43191,7 @@ loc_1E9C2:
 
 loc_1E9D0:
 	movea.l	(Collision_addr).w,a2
+	movea.l	(a2),a2
 	move.b	(a2,d0.w),d0
 	andi.w	#$FF,d0	; relevant collisionArrayEntry
 	beq.s	loc_1E9C2
@@ -43281,6 +43280,7 @@ loc_1EA6A:
 
 loc_1EA78:
 	movea.l	(Collision_addr).w,a2
+	movea.l	(a2),a2
 	move.b	(a2,d0.w),d0
 	andi.w	#$FF,d0
 	beq.s	loc_1EA6A
@@ -90718,38 +90718,37 @@ ColArrayVertical:	BINCLUDE	"collision/Collision array - Vertical.bin"
 ColArrayHorizontal:	BINCLUDE	"collision/Collision array - Horizontal.bin"
 	even
 
-; These are all compressed in the Kosinski format.
-ColP_EHZHTZ:	BINCLUDE	"collision/EHZ and HTZ primary 16x16 collision index.kos"
+ColP_EHZHTZ:	BINCLUDE	"collision/EHZ and HTZ primary 16x16 collision index.unc"
 	even
-ColS_EHZHTZ:	BINCLUDE	"collision/EHZ and HTZ secondary 16x16 collision index.kos"
+ColS_EHZHTZ:	BINCLUDE	"collision/EHZ and HTZ secondary 16x16 collision index.unc"
 	even
-ColP_WZ:	;BINCLUDE	"collision/WZ primary 16x16 collision index.kos"
+ColP_WZ:	;BINCLUDE	"collision/WZ primary 16x16 collision index.unc"
 	;even
-ColP_MTZ:	BINCLUDE	"collision/MTZ primary 16x16 collision index.kos"
+ColP_MTZ:	BINCLUDE	"collision/MTZ primary 16x16 collision index.unc"
 	even
-ColP_HPZ:	;BINCLUDE	"collision/HPZ primary 16x16 collision index.kos"
+ColP_HPZ:	;BINCLUDE	"collision/HPZ primary 16x16 collision index.unc"
 	;even
-ColS_HPZ:	;BINCLUDE	"collision/HPZ secondary 16x16 collision index.kos"
+ColS_HPZ:	;BINCLUDE	"collision/HPZ secondary 16x16 collision index.unc"
 	;even
-ColP_OOZ:	BINCLUDE	"collision/OOZ primary 16x16 collision index.kos"
+ColP_OOZ:	BINCLUDE	"collision/OOZ primary 16x16 collision index.unc"
 	even
-ColP_MCZ:	BINCLUDE	"collision/MCZ primary 16x16 collision index.kos"
+ColP_MCZ:	BINCLUDE	"collision/MCZ primary 16x16 collision index.unc"
 	even
-ColP_CNZ:	BINCLUDE	"collision/CNZ primary 16x16 collision index.kos"
+ColP_CNZ:	BINCLUDE	"collision/CNZ primary 16x16 collision index.unc"
 	even
-ColS_CNZ:	BINCLUDE	"collision/CNZ secondary 16x16 collision index.kos"
+ColS_CNZ:	BINCLUDE	"collision/CNZ secondary 16x16 collision index.unc"
 	even
-ColP_CPZDEZ:	BINCLUDE	"collision/CPZ and DEZ primary 16x16 collision index.kos"
+ColP_CPZDEZ:	BINCLUDE	"collision/CPZ and DEZ primary 16x16 collision index.unc"
 	even
-ColS_CPZDEZ:	BINCLUDE	"collision/CPZ and DEZ secondary 16x16 collision index.kos"
+ColS_CPZDEZ:	BINCLUDE	"collision/CPZ and DEZ secondary 16x16 collision index.unc"
 	even
-ColP_ARZ:	BINCLUDE	"collision/ARZ primary 16x16 collision index.kos"
+ColP_ARZ:	BINCLUDE	"collision/ARZ primary 16x16 collision index.unc"
 	even
-ColS_ARZ:	BINCLUDE	"collision/ARZ secondary 16x16 collision index.kos"
+ColS_ARZ:	BINCLUDE	"collision/ARZ secondary 16x16 collision index.unc"
 	even
-ColP_WFZSCZ:	BINCLUDE	"collision/WFZ and SCZ primary 16x16 collision index.kos"
+ColP_WFZSCZ:	BINCLUDE	"collision/WFZ and SCZ primary 16x16 collision index.unc"
 	even
-ColS_WFZSCZ:	BINCLUDE	"collision/WFZ and SCZ secondary 16x16 collision index.kos"
+ColS_WFZSCZ:	BINCLUDE	"collision/WFZ and SCZ secondary 16x16 collision index.unc"
 	even
 ColP_Invalid:
 

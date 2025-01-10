@@ -918,16 +918,24 @@ LevelOnly_Object_RAM_End:
 
 				ds.b	$200	; unused
 
-Primary_Collision:		ds.b	$300
-Secondary_Collision:		ds.b	$300
+Sonic_Stat_Record_Buf:		ds.b	$100
 
-SS_Shared_RAM_End:
+Sonic_Pos_Record_Buf:		ds.b	$100
+Sonic_Pos_Record_Buf_End:
 
-VDP_Command_Buffer:		ds.w	7*$12	; stores 18 ($12) VDP commands to issue the next time ProcessDMAQueue is called
-VDP_Command_Buffer_Slot:	ds.l	1	; stores the address of the next open slot for a queued VDP command
+Tails_Pos_Record_Buf:		ds.b	$100
+Tails_Pos_Record_Buf_End:
 
 Sprite_Table_P2:		ds.b	$280	; Sprite attribute table buffer for the bottom split screen in 2-player mode
 				ds.b	$80	; unused, but SAT buffer can spill over into this area when there are too many sprites on-screen
+
+SS_Shared_RAM_End:
+
+Primary_Collision:		ds.l	1
+Secondary_Collision:		ds.l	1
+
+VDP_Command_Buffer:		ds.w	7*$12	; stores 18 ($12) VDP commands to issue the next time ProcessDMAQueue is called
+VDP_Command_Buffer_Slot:	ds.l	1	; stores the address of the next open slot for a queued VDP command
 
 HorizontalScrollBuffer struct dots
 	ds.l	224	; Total lines on the screen.
@@ -936,14 +944,6 @@ HorizontalScrollBuffer struct dots
 HorizontalScrollBuffer endstruct
 
 Horiz_Scroll_Buf:		HorizontalScrollBuffer
-
-Sonic_Stat_Record_Buf:		ds.b	$100
-
-Sonic_Pos_Record_Buf:		ds.b	$100
-Sonic_Pos_Record_Buf_End:
-
-Tails_Pos_Record_Buf:		ds.b	$100
-Tails_Pos_Record_Buf_End:
 
 CNZ_saucer_data:		ds.b	$40	; the number of saucer bumpers in a group which have been destroyed. Used to decide when to give 500 points instead of 10
 CNZ_saucer_data_End:
@@ -1116,13 +1116,13 @@ Underwater_palette_line4:	ds.b palette_line_size
     if fixBugs
 Sprite_Table_Alternate:		ds.b	$280
 Sprite_Table_P2_Alternate:	ds.b	$280
-    else
+	else
+							ds.b	$500 ; unused
+	endif
 
-v_snddriver_ram:		ds.b $400	; $FFFFF100-$FFFFF5FF ; unused, leftover from the Sonic 1 sound driver (and used by it when you port it to Sonic 2)
-SegaCD_Mode:		ds.b $100
-
-;				ds.b	$500	; $FFFFF100-$FFFFF5FF ; unused, leftover from the Sonic 1 sound driver (and used by it when you port it to Sonic 2)
-    endif
+v_snddriver_ram:		ds.b $3B0	; $FFFFF100-$FFFFF5FF ; unused, leftover from the Sonic 1 sound driver (and used by it when you port it to Sonic 2)
+SegaCD_Mode:		ds.b 1
+					ds.b 1
 
 Game_Mode:			ds.b	1	; see GameModesArray (master level trigger, Mstr_Lvl_Trigger)
 				ds.b	1	; unused
