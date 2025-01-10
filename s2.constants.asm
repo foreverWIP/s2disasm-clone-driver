@@ -935,7 +935,7 @@ Primary_Collision:		ds.l	1
 Secondary_Collision:		ds.l	1
 
 VDP_Command_Buffer:		ds.w	7*$12	; stores 18 ($12) VDP commands to issue the next time ProcessDMAQueue is called
-VDP_Command_Buffer_Slot:	ds.l	1	; stores the address of the next open slot for a queued VDP command
+VDP_Command_Buffer_Slot:	ds.w	1	; stores the address of the next open slot for a queued VDP command
 
 HorizontalScrollBuffer struct dots
 	ds.l	224	; Total lines on the screen.
