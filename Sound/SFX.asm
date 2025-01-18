@@ -62,7 +62,7 @@ ptr_sndCD:	SMPS_SFX_METADATA	SoundCD, $6F, 0
 ptr_sndCE:	SMPS_SFX_METADATA	SoundCE, $70, 0
 ptr_sndCF:	SMPS_SFX_METADATA	SoundCF, $70, 0
 ptr_sndD0:	SMPS_SFX_METADATA	SoundD0, $70, 0
-ptr_sndD1:	SMPS_SFX_METADATA	SoundD1, $60, 0
+ptr_sndD1:	SMPS_SFX_METADATA	SoundD1, $70, 0
 ptr_sndD2:	SMPS_SFX_METADATA	SoundD2, $60, 0
 ptr_sndD3:	SMPS_SFX_METADATA	SoundD3, $70, 0
 ptr_sndD4:	SMPS_SFX_METADATA	SoundD4, $70, 0
@@ -197,7 +197,7 @@ SoundCF:	include	"Sound/SFX/CF - Signpost.asm"
 		even
 SoundD0:	include	"Sound/SFX/D0 - CNZ Boss Zap.asm"
 		even
-SoundD1:	include	"Sound/SFX/D1 - Unknown (Unused).asm"
+SoundD1:	include	"Sound/SFX/D1 - Urgent Water Warning.asm"
 		even
 SoundD2:	include	"Sound/SFX/D2 - Unknown (Unused).asm"
 		even

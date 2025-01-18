@@ -25206,6 +25206,7 @@ super_shoes:
 	move.w	#$C00,(Sonic_top_speed).w	; set stats
 	move.w	#$18,(Sonic_acceleration).w
 	move.w	#$80,(Sonic_deceleration).w
+	move.b	#ObjID_SpeedShoesIndicator,(SpeedShoesIndicator_P1).w
 	bra.s	+
 ; ---------------------------------------------------------------------------
 ;loc_12A10:
@@ -25213,9 +25214,16 @@ super_shoes_Tails:
 	move.w	#$C00,(Tails_top_speed).w
 	move.w	#$18,(Tails_acceleration).w
 	move.w	#$80,(Tails_deceleration).w
+	move.b	#ObjID_SpeedShoesIndicator,(SpeedShoesIndicator_P2).w
 +
+	bsr.w	SetUpSpeedShoesIndicator
 	move.w	#MusID_SpeedUp,d0
 	jmp	(PlayMusic).l	; Speed up tempo
+
+SetUpSpeedShoesIndicator:
+	move.w	x_pos(a1),(SpeedShoesIndicator_P1+x_pos).w
+	move.w	y_pos(a1),(SpeedShoesIndicator_P1+y_pos).w
+	rts
 ; ===========================================================================
 ; ---------------------------------------------------------------------------
 ; Shield Monitor
@@ -29232,7 +29240,7 @@ ObjPtr_Starpost:	dc.l Obj79	; Star pole / starpost / checkpoint
 ObjPtr_SidewaysPform:	dc.l Obj7A	; Platform that moves back and fourth on top of water in CPZ
 ObjPtr_PipeExitSpring:	dc.l Obj7B	; Warp pipe exit spring from CPZ
 ObjPtr_CPZPylon:	dc.l Obj7C	; Big pylon in foreground of CPZ
-			dc.l Obj7D	; Points that can be gotten at the end of an act (unused leftover from S1)
+ObjPtr_SpeedShoesIndicator:	dc.l Obj7D	; Points that can be gotten at the end of an act (unused leftover from S1)
 ObjPtr_SuperSonicStars:	dc.l Obj7E	; Super Sonic's stars
 ObjPtr_VineSwitch:	dc.l Obj7F	; Vine switch that you hang off in MCZ
 ObjPtr_MovingVine:	dc.l Obj80	; Vine that you hang off and it moves down from MCZ
@@ -41059,6 +41067,11 @@ Obj0A_BecomeNumberMaybe:
 	bhs.s	return_1D4BE
 
 	; Turn this bubble into a number.
+	tst.b	(SegaCD_Mode).w
+	beq.s	+
+	move.b	#SndID_WaterWarningUrgent,d0
+	jsr	(PlaySound).l
++
 	move.w	#15,obj0a_timer(a0)
 	clr.w	y_vel(a0)
 	move.b	#$80,render_flags(a0)
@@ -41157,6 +41170,8 @@ Obj0A_Countdown:
 	bhi.s	Obj0A_ReduceAir	; play drowning theme when there are 12 seconds left
 	bne.s	+
 	; Play countdown music if this is player 1.
+	tst.b	(SegaCD_Mode).w
+	bne.s	+
 	tst.b	obj0a_character+3(a0)
 	bne.s	+
 	move.w	#MusID_Countdown,d0
@@ -41326,6 +41341,9 @@ return_1D81C:
 
 ; loc_1D81E:
 ResumeMusic:
+	tst.b	(SegaCD_Mode).w
+	bne.s	ResumeMusic_Done
+
 	cmpi.b	#12,air_left(a1)
 	bhi.s	ResumeMusic_Done	; branch if countdown hasn't started yet
 
@@ -43953,73 +43971,42 @@ Obj7D_Index:	offsetTable
 ; ===========================================================================
 ; loc_1F636:
 Obj7D_Init:
-	moveq	#$10,d2
-	move.w	d2,d3
-	add.w	d3,d3
-	lea	(MainCharacter).w,a1 ; a1=character
-	move.w	x_pos(a1),d0
-	sub.w	x_pos(a0),d0
-	add.w	d2,d0
-	cmp.w	d3,d0
-	bhs.s	Obj7D_NoAdd
-	move.w	y_pos(a1),d1
-	sub.w	y_pos(a0),d1
-	add.w	d2,d1
-	cmp.w	d3,d1
-	bhs.s	Obj7D_NoAdd
-	tst.w	(Debug_placement_mode).w
-	bne.s	Obj7D_NoAdd
-	tst.b	(f_bigring).w
-	bne.s	Obj7D_NoAdd
 	addq.b	#2,routine(a0)
-	move.l	#Obj7D_MapUnc_1F6FE,mappings(a0)
-	move.w	#make_art_tile(ArtTile_ArtNem_EndPoints,0,1),art_tile(a0)
+	move.w	#make_art_tile(ArtTile_ArtNem_Powerups,0,1),art_tile(a0)
 	jsrto	Adjust2PArtPointer, JmpTo4_Adjust2PArtPointer
-	ori.b	#4,render_flags(a0)
 	move.b	#0,priority(a0)
-	move.b	#$10,width_pixels(a0)
-	move.b	subtype(a0),mapping_frame(a0)
-	move.w	#$77,objoff_30(a0)
+	move.b	#8,width_pixels(a0)
+	moveq	#6,d0
+	move.b	d0,anim(a0)
+	move.b	d0,mapping_frame(a0)
+	movea.l	#Obj26_MapUnc_12D36,a1
+	add.b	d0,d0
+	adda.w	(a1,d0.w),a1
+	addq.w	#2,a1
+	move.l	a1,mappings(a0)
+	lea	(MainCharacter).w,a1 ; a1=character
+	move.w	#128+24,x_pixel(a0)
+	move.w	#128+68,y_pixel(a0)
+	move.b	#$20,render_flags(a0)
 	move.w	#SndID_Bonus,d0
 	jsr	(PlaySound).l
-	moveq	#0,d0
-	move.b	subtype(a0),d0
-	add.w	d0,d0
-	move.w	word_1F6D2(pc,d0.w),d0
-	jsr	(AddPoints).l
-
-Obj7D_NoAdd:
-	move.w	x_pos(a0),d0
-	andi.w	#$FF80,d0
-	sub.w	(Camera_X_pos_coarse).w,d0
-	cmpi.w	#$280,d0
-	bhi.s	JmpTo11_DeleteObject
 	rts
 ; ===========================================================================
 
 JmpTo11_DeleteObject ; JmpTo
 	jmp	(DeleteObject).l
 ; ===========================================================================
-word_1F6D2:
-	dc.w	 0
-	dc.w  1000
-	dc.w   100
-    if fixBugs
-	dc.w	10
-    else
-	; This should give 100 points, not 10.
-	dc.w	 1
-    endif
-; ===========================================================================
 ; loc_1F6DA:
 Obj7D_Main:
-	subq.w	#1,objoff_30(a0)
-	bmi.s	JmpTo12_DeleteObject
-	move.w	x_pos(a0),d0
-	andi.w	#$FF80,d0
-	sub.w	(Camera_X_pos_coarse).w,d0
-	cmpi.w	#$280,d0
-	bhi.s	JmpTo12_DeleteObject
+	lea	(MainCharacter).w,a1 ; a1=character
+	move.w	speedshoes_time(a1),d0
+	beq.s	JmpTo12_DeleteObject
+	cmpi.w	#5*60,d0
+	bhi.s	+
+	btst	#0,d0
+	bne.s	+
+	rts
++
 	jmp	(DisplaySprite).l
 ; ===========================================================================
 

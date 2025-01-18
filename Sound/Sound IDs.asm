@@ -97,6 +97,7 @@ SndID_Blip =                    SMPS_id(ptr_sndCD)   ; AD
 SndID_RingLeft =                SMPS_id(ptr_sndCE)   ; AE
 SndID_Signpost =                SMPS_id(ptr_sndCF)   ; AF
 SndID_CNZBossZap =              SMPS_id(ptr_sndD0)   ; B0
+SndID_WaterWarningUrgent =      SMPS_id(ptr_sndD1)   ; B1
 SndID_Signpost2P =              SMPS_id(ptr_sndD3)   ; B3
 SndID_OOZLidPop =               SMPS_id(ptr_sndD4)   ; B4
 SndID_SlidingSpike =            SMPS_id(ptr_sndD5)   ; B5

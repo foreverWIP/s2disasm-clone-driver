@@ -647,6 +647,7 @@ ObjID_Starpost =		id(ObjPtr_Starpost)		; 79
 ObjID_SidewaysPform =		id(ObjPtr_SidewaysPform)	; 7A
 ObjID_PipeExitSpring =		id(ObjPtr_PipeExitSpring)	; 7B
 ObjID_CPZPylon =		id(ObjPtr_CPZPylon)		; 7C
+ObjID_SpeedShoesIndicator =		id(ObjPtr_SpeedShoesIndicator)		; 7D
 ObjID_SuperSonicStars =		id(ObjPtr_SuperSonicStars)	; 7E
 ObjID_VineSwitch =		id(ObjPtr_VineSwitch)		; 7F
 ObjID_MovingVine =		id(ObjPtr_MovingVine)		; 80
@@ -860,10 +861,11 @@ TitleCard_Bottom:		; level title card: yellow part at the bottom
 				ds.b	object_size
 TitleCard_Left:			; level title card: red part on the left
 				ds.b	object_size
-
+SpeedShoesIndicator_P1:
+				ds.b	object_size
+SpeedShoesIndicator_P2:
+				ds.b	object_size
 				; Reserved object RAM, free slots
-				ds.b	object_size
-				ds.b	object_size
 				ds.b	object_size
 				ds.b	object_size
 				ds.b	object_size

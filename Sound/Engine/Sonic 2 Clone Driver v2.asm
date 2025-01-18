@@ -933,13 +933,37 @@ Sound_PlayCDA:
 ; ===========================================================================
 
 PlayCD_Index:
-	dc.l _MCD_PlayTrack<<24|$00000000			; $01 (DEZ)
-	dc.l _MCD_PlayTrack<<24|$00000000			; $02 (Mid Boss)
-	dc.l _MCD_PlayTrack<<24|$00000000			; $03 (Boss)
-	dc.l _MCD_PlayTrack<<24|$00000000			; $04 (Invincible)
-	dc.l _MCD_PlayTrack_Once<<24|$00000000	; $05 (Act Clear)
-	dc.l _MCD_PlayTrack_Once<<24|$00000000	; $06 (Countdown)
-	dc.l _MCD_PlayTrack<<24|$00000000			; $07 (Speedup)
+	dc.l _MCD_PlayTrack<<24|$00000000 ; MusID_2PResult ($01)
+	dc.l _MCD_PlayTrack<<24|$00000000 ; MusID_EHZ ($02)
+	dc.l _MCD_PlayTrack<<24|$00000000 ; MusID_MCZ_2P ($03)
+	dc.l _MCD_PlayTrack<<24|$00000000 ; MusID_OOZ ($04)
+	dc.l _MCD_PlayTrack<<24|$00000000 ; MusID_MTZ ($05)
+	dc.l _MCD_PlayTrack<<24|$00000000 ; MusID_HTZ ($06)
+	dc.l _MCD_PlayTrack<<24|$00000000 ; MusID_ARZ ($07)
+	dc.l _MCD_PlayTrack<<24|$00000000 ; MusID_CNZ_2P ($08)
+	dc.l _MCD_PlayTrack<<24|$00000000 ; MusID_CNZ ($09)
+	dc.l _MCD_PlayTrack<<24|$00000000 ; MusID_DEZ ($0A)
+	dc.l _MCD_PlayTrack<<24|$00000000 ; MusID_MCZ ($0B)
+	dc.l _MCD_PlayTrack<<24|$00000000 ; MusID_EHZ_2P ($0C)
+	dc.l _MCD_PlayTrack<<24|$00000000 ; MusID_SCZ ($0D)
+	dc.l _MCD_PlayTrack<<24|$00000000 ; MusID_CPZ ($0E)
+	dc.l _MCD_PlayTrack<<24|$00000000 ; MusID_WFZ ($0F)
+	dc.l _MCD_PlayTrack<<24|$00000000 ; MusID_HPZ ($10)
+	dc.l _MCD_PlayTrack<<24|$00000000 ; MusID_Options ($11)
+	dc.l _MCD_PlayTrack<<24|$00000000 ; MusID_SpecStage ($12)
+	dc.l _MCD_PlayTrack<<24|$00000000 ; MusID_Boss ($13)
+	dc.l _MCD_PlayTrack<<24|$00000000 ; MusID_EndBoss ($14)
+	dc.l _MCD_PlayTrack_Once<<24|$00000000 ; MusID_Ending ($15)
+	dc.l _MCD_PlayTrack<<24|$00000000 ; MusID_SuperSonic ($16)
+	dc.l _MCD_PlayTrack<<24|$00000000 ; MusID_Invincible ($17)
+	dc.l _MCD_PlayTrack_Once<<24|$00000000 ; MusID_ExtraLife ($18)
+	dc.l _MCD_PlayTrack_Once<<24|$00000000 ; MusID_Title ($19)
+	dc.l _MCD_PlayTrack_Once<<24|$00000000 ; MusID_EndLevel ($1A)
+	dc.l _MCD_PlayTrack_Once<<24|$00000000 ; MusID_GameOver ($1B)
+	dc.l _MCD_PlayTrack_Once<<24|$00000000 ; MusID_Continue ($1C)
+	dc.l _MCD_PlayTrack_Once<<24|$00000000 ; MusID_Emerald ($1D)
+	dc.l _MCD_PlayTrack_Once<<24|$00000000 ; MusID_Credits ($1E)
+	dc.l _MCD_PlayTrack_Once<<24|$00000000 ; MusID_Countdown ($1F)
 	even
 
 ; ||||||||||||||| S U B	R O U T	I N E |||||||||||||||||||||||||||||||||||||||
@@ -949,6 +973,10 @@ PlaySoundID:	; For the love of god, don't rearrange the order of the groups, it 
 	; Music
 	cmpi.w	#MusID__First,d7			; Is this before music?
 	blo.w	CycleSoundQueue.locret		; Return if yes
+	cmpi.w	#MusID_Countdown,d7
+	beq.w	Sound_PlayBGM
+	cmpi.w	#MusID_ExtraLife,d7
+	beq.w	Sound_PlayBGM
 	cmpi.w	#MusID__End,d7				; Is this music ($01-$1F)?
 	blo.w	Sound_PlayCDA				; Branch if yes
 
